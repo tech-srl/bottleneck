@@ -2,11 +2,15 @@
 
 This is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://arxiv.org/pdf/2006.05205) 
 
-See also [[video]](https://youtu.be/vrLsEwzZTCQ)[[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
+By [Uri Alon](http://urialon.cswp.cs.technion.ac.il/) and [Eran Yahav](http://www.cs.technion.ac.il/~yahave/).
+See also the [[video]](https://youtu.be/vrLsEwzZTCQ) and the [[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
 
 This repository can be used to reproduce the experiments of 
 Section 4.1 in the paper, for the "Tree-NeighborsMatch" problem. 
-It also allows comparing other GNN architectures in the same problem.
+
+This project was designed to be useful in experimenting with new GNN architectures and new solutions for the bottleneck problem. 
+
+Feel free to open an issue with any questions.
 
 
 # The Tree-NeighborsMatch problem
@@ -15,46 +19,25 @@ It also allows comparing other GNN architectures in the same problem.
 ## Requirements
 
 ### Dependencies
-This project is based on PyTorch 1.4.0 and the [pytorch_geometric](https://pytorch-geometric.readthedocs.io/) library.
-First, install PyTorch 1.4.0 from the official website: [https://pytorch.org/](https://pytorch.org/).
-
-The `requirements.txt` lists the additional requirements.
- However, pytorch_geometric might requires manual installation, and we thus recommend to use the 
-`requirements.txt` file only afterward.
-
-Install the needed dependencies for pytorch_geometric, with ${CUDA} replaced by either:
-`cpu`, `cu92`, `cu100` or `cu101` depending on your PyTorch installation.
-For example, set:
-```
-CUDA=cu101
-```
-To specify CUDA 10.1.
-Then, run:
-```
-$ pip install torch-scatter==latest+${CUDA} -f https://pytorch-geometric.com/whl/torch-1.4.0.html
-$ pip install torch-sparse==latest+${CUDA} -f https://pytorch-geometric.com/whl/torch-1.4.0.html
-$ pip install torch-cluster==latest+${CUDA} -f https://pytorch-geometric.com/whl/torch-1.4.0.html
-$ pip install torch-spline-conv==latest+${CUDA} -f https://pytorch-geometric.com/whl/torch-1.4.0.html
-$ pip install torch-geometric
-``` 
-
-If the last line (`pip install torch-geometric`) doesn't work, you can try to clone the repository [https://github.com/rusty1s/pytorch_geometric](https://github.com/rusty1s/pytorch_geometric), and run:
-
-```
-python setup.py install
-```
-
-Eventually, run the following to verify that all dependencies are satisfied:
+This project is based on PyTorch 1.4.0 and the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/) library.
+* First, install PyTorch from the official website: [https://pytorch.org/](https://pytorch.org/).
+* Then install PyTorch Geometric: [https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
+* Eventually, run the following to verify that all dependencies are satisfied:
 ```setup
 pip install -r requirements.txt
 ```
 
-Addtionally, verify that importing the dependencies goes without errors:
+The `requirements.txt` file lists the additional requirements.
+ However, PyTorch Geometric might requires manual installation, and we thus recommend to use the 
+`requirements.txt` file only afterward.
+
+
+Verify that importing the dependencies goes without errors:
 ```
 python -c 'import torch; import torch_geometric'
 ```
 
-If the installation of pytorch_geometric ends with errors, see: [https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html) 
+
 
 ### Hardware
 Training on large trees (depth=8) might require ~60GB of RAM and about 10GB of GPU memory.
@@ -105,3 +88,23 @@ Depth:   | 2   	| 3   	| 4    	| 5    	| 6    	| 7    	| 8    	|
  **GAT**  	| 1.0 	| 1.0 	| 1.0  	| 0.41 	| 0.21 	| 0.15 	| 0.11 	|
  **GIN**  	| 1.0 	| 1.0 	| 0.77 	| 0.29 	| 0.20 	|      	|      	|
  **GCN**  	| 1.0 	| 1.0 	| 0.70 	| 0.19 	| 0.14 	| 0.09 	| 0.08 	|
+
+## Experiment with other GNN types
+To experiment with other GNN types:
+* Add the new GNN type to the `GNN_TYPE` enum [here](common.py#L34), for example: `MY_NEW_TYPE = auto()`
+* Add another `elif self is GNN_TYPE.MY_NEW_TYPE:` to instantiate the new GNN type object [here](common.py#L47)
+* Use the new type as a flag for the `main.py` file:
+```
+python main.py --type MY_NEW_TYPE ...
+```
+
+## Citations
+If you want to cite this work, please use this bibtex entry:
+```
+@article{alon2020bottleneck,
+  title={On the Bottleneck of Graph Neural Networks and its Practical Implications},
+  author={Alon, Uri and Yahav, Eran},
+  journal={arXiv preprint arXiv:2006.05205},
+  year={2020}
+}
+```
