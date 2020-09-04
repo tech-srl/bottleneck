@@ -1,6 +1,6 @@
 # On the Bottleneck of Graph Neural Networks and its Practical Implications
 
-This repository is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://arxiv.org/pdf/2006.05205) 
+This is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://arxiv.org/pdf/2006.05205) 
 
 See also [[video]](https://youtu.be/vrLsEwzZTCQ)[[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
 
@@ -98,4 +98,10 @@ The results of running the above scripts are (Section 4.1 in the paper):
 
 ![alt text](images/fig3.png "Figure 3 from the paper")
 
-|
+
+||      | 2   	| 3   	| 4    	| 5    	| 6    	| 7    	| 8    	|
+|------	|-----	|-----	|------	|------	|------	|------	|------	|
+| GGNN 	| 1.0 	| 1.0 	| 1.0  	| 0.60 	| 0.38 	| 0.21 	| 0.16 	|
+| GAT  	| 1.0 	| 1.0 	| 1.0  	| 0.41 	| 0.21 	| 0.15 	| 0.11 	|
+| GIN  	| 1.0 	| 1.0 	| 0.77 	| 0.29 	| 0.20 	|      	|      	|
+| GCN  	| 1.0 	| 1.0 	| 0.70 	| 0.19 	| 0.14 	| 0.09 	| 0.08 	|
