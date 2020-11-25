@@ -16,7 +16,8 @@ class GraphModel(torch.nn.Module):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.num_layers = num_layers
-        self.layer0 = nn.Linear(in_features=dim0, out_features=h_dim, bias=True)
+        self.layer0_keys = nn.Embedding(num_embeddings=dim0 + 1, embedding_dim=h_dim)
+        self.layer0_values = nn.Embedding(num_embeddings=dim0 + 1, embedding_dim=h_dim)
         self.layers = nn.ModuleList()
         self.layer_norms = nn.ModuleList()
         if unroll:
@@ -33,11 +34,17 @@ class GraphModel(torch.nn.Module):
                 self.layer_norms.append(nn.LayerNorm(h_dim))
 
         self.out_dim = out_dim
-        self.out_layer = nn.Linear(in_features=h_dim, out_features=out_dim, bias=False)
+        # self.out_layer = nn.Linear(in_features=h_dim, out_features=out_dim, bias=False)
+        self.out_layer = nn.Linear(in_features=h_dim, out_features=out_dim + 1, bias=False)
 
     def forward(self, data):
         x, edge_index, batch, roots = data.x, data.edge_index, data.batch, data.root_mask
-        x = self.layer0(x)
+
+        x_key, x_val = x[:, 0], x[:, 1]
+        x_key_embed = self.layer0_keys(x_key)
+        x_val_embed = self.layer0_values(x_val)
+        x = x_key_embed + x_val_embed
+
         for i in range(self.num_layers):
             if self.unroll:
                 layer = self.layers[0]
@@ -64,4 +71,5 @@ class GraphModel(torch.nn.Module):
 
         root_nodes = x[roots]
         logits = self.out_layer(root_nodes)
+        # logits = F.linear(root_nodes, self.layer0_values.weight)
         return logits

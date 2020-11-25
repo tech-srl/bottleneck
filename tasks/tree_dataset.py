@@ -46,7 +46,7 @@ class TreeDataset(object):
 
         for comb in self.get_combinations():
             edge_index = self.create_blank_tree(add_self_loops=True)
-            nodes = torch.tensor(self.get_nodes_features(comb), dtype=torch.float)
+            nodes = torch.tensor(self.get_nodes_features(comb), dtype=torch.long)
             root_mask = torch.tensor([True] + [False] * (len(nodes) - 1))
             label = self.label(comb)
             data_list.append(Data(x=nodes, edge_index=edge_index, root_mask=root_mask, y=label))
