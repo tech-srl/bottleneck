@@ -2,6 +2,8 @@ model:
   - GIN
 device:
   - cpu
+last_layer_fa:
+  - false
 batch_size:
   - 32
   - 128

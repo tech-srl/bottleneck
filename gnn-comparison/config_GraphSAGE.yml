@@ -4,6 +4,8 @@ device:
   - cpu
 batch_size:
   - 32
+last_layer_fa:
+  - false
 learning_rate:
   - 0.0001
   - 0.01
@@ -40,5 +42,6 @@ num_layers:
   - 3
   - 5
 aggregation:
+  - add
   - max
   - mean

@@ -1,6 +1,7 @@
 from math import ceil
 
 import torch
+import torch_geometric
 from torch import nn
 from torch.nn import functional as F
 from torch_geometric.nn import DenseSAGEConv, dense_diff_pool
@@ -93,6 +94,9 @@ class DiffPool(nn.Module):
         dim_embedding_MLP = config['dim_embedding_MLP']  # hidden neurons of last 2 MLP layers
 
         self.num_diffpool_layers = num_diffpool_layers
+        self.last_layer_fa = config['last_layer_fa']
+        if self.last_layer_fa:
+            print('Using LastLayerFA')
 
         # Reproduce paper choice about coarse factor
         coarse_factor = 0.1 if num_diffpool_layers == 1 else 0.25
@@ -132,6 +136,8 @@ class DiffPool(nn.Module):
         for i in range(self.num_diffpool_layers):
             if i != 0:
                 mask = None
+            if self.last_layer_fa and i == self.num_diffpool_layers - 1:
+                adj = torch.ones_like(adj)
 
             x, adj, l, e = self.diffpool_layers[i](x, adj, mask)  # x has shape (batch, MAX_no_nodes, feature_size)
             x_all.append(torch.max(x, dim=1)[0])

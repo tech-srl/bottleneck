@@ -4,6 +4,8 @@ device:
   - cpu
 batch_size:
   - 50
+last_layer_fa:
+  - false
 dense_dim:
   - 128
 k:

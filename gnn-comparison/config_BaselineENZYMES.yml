@@ -1,27 +1,32 @@
 model:
-  - DiffPool
+  - DeepMultisets
 device:
   - cpu
 batch_size:
-  - 8
-last_layer_fa:
-  - false
+  - 32
+hidden_units:
+  - 32
+  - 64
+  - 128
+  - 256
 learning_rate:
+  - 0.00001
+  - 0.0001
   - 0.001
+l2:
+  - 0.01
   - 0.0001
   - 0.00001
 classifier_epochs:
-  - 3000
+  - 5000
 optimizer:
   - Adam
 scheduler:
   - null
 loss:
-  - DiffPoolMulticlassClassificationLoss
-l2:
-  - 0.
+  - MulticlassClassificationLoss
 gradient_clipping:
-  - 2.0
+  - null
 early_stopper:
   -
     class: Patience
@@ -35,16 +40,3 @@ early_stopper:
       use_loss: True
 shuffle:
   - True
-num_layers:
-  # - 1
-  - 2
-gnn_dim_hidden:
-  # - 32
-  - 64
-dim_embedding:
-  # - 64
-  - 128
-dim_embedding_MLP:
-  - 50
-
-

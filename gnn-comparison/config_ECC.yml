@@ -4,6 +4,8 @@ device:
   - cpu
 batch_size:
   - 32
+last_layer_fa:
+  - false
 learning_rate:
   - 0.1
   - 0.01

@@ -1,4 +1,5 @@
 import torch
+import torch_geometric
 from torch import nn
 from torch.nn import functional as F
 
@@ -15,6 +16,9 @@ class GraphSAGE(nn.Module):
         num_layers = config['num_layers']
         dim_embedding = config['dim_embedding']
         self.aggregation = config['aggregation']  # can be mean or max
+        self.last_layer_fa = config['last_layer_fa']
+        if self.last_layer_fa:
+            print('Using LastLayerFA')
 
         if self.aggregation == 'max':
             self.fc_max = nn.Linear(dim_embedding, dim_embedding)
@@ -39,7 +43,11 @@ class GraphSAGE(nn.Module):
         x_all = []
 
         for i, layer in enumerate(self.layers):
-            x = layer(x, edge_index)
+            edges = edge_index
+            if self.last_layer_fa and i == len(self.layers) - 1:
+                block_map = torch.eq(batch.unsqueeze(0), batch.unsqueeze(-1)).int()
+                edges, _ = torch_geometric.utils.dense_to_sparse(block_map)
+            x = layer(x, edges)
             if self.aggregation == 'max':
                 x = torch.relu(self.fc_max(x))
             x_all.append(x)
