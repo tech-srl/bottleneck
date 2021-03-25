@@ -25,7 +25,6 @@ class PPI_Task(Sparse_Graph_Task):
             'add_self_loop_edges': True,
             'tie_fwd_bkwd_edges': False,
             'out_layer_dropout_keep_prob': 1.0,
-            'global_attention_heads': 0,
         })
         return params
 
@@ -171,7 +170,7 @@ class PPI_Task(Sparse_Graph_Task):
         super().make_task_input_model(placeholders=placeholders, model_ops=model_ops)
         placeholders['graph_to_nodes'] = \
             tf.placeholder(dtype=tf.int32, shape=[None, None], name='graph_to_nodes')  # (G, V)
-    
+
     def make_task_output_model(self,
                                placeholders: Dict[str, tf.Tensor],
                                model_ops: Dict[str, tf.Tensor],
@@ -185,22 +184,7 @@ class PPI_Task(Sparse_Graph_Task):
 
         final_node_representations = model_ops['final_node_representations']
         final_node_repr_size = final_node_representations.shape.as_list()[-1]
-        if self.params['global_attention_heads'] > 0:
-            num_heads = self.params['global_attention_heads']
-            print('Using self attention with {} heads'.format(num_heads))
-            graph_to_nodes_placeholder = placeholders['graph_to_nodes']
-            safe_graph_to_nodes = tf.maximum(graph_to_nodes_placeholder, 0)
-            graph_nodes = \
-                tf.gather(params=final_node_representations, indices=safe_graph_to_nodes)  # Shape: [G, V, D]
-            selfatt = SelfAttention(num_heads=num_heads,
-                                    model_dim=final_node_repr_size,
-                                    dropout_keep_prob=placeholders['out_layer_dropout_keep_prob'])
-            valid_mask = tf.cast(tf.greater(graph_to_nodes_placeholder, -1), dtype=tf.float32)  # (G, V)
-            attended_graph_nodes = selfatt.multi_head(batched_inputs=graph_nodes,
-                                                      valid_mask=valid_mask)  # (G, V, D)
-            attended_graph_nodes = tf.concat([attended_graph_nodes, graph_nodes], axis=-1)  # (G, V, 2D)
-            final_node_representations = tf.gather_nd(params=attended_graph_nodes, indices=tf.where(valid_mask))
-        
+
         per_node_logits = \
             tf.keras.layers.Dense(units=self.__num_labels,
                                   use_bias=True,
@@ -257,9 +241,9 @@ class PPI_Task(Sparse_Graph_Task):
                     batch_adjacency_lists[i].append(cur_graph.adjacency_lists[i] + node_offset)
                 batch_type_to_num_incoming_edges.append(cur_graph.type_to_node_to_num_incoming_edges)
                 batch_node_labels.append(cur_graph.node_labels)
-                
+
                 graph_to_nodes.append([i + node_offset for i in range(num_nodes_in_graph)])
-                
+
                 num_graphs += 1
                 num_graphs_in_batch += 1
                 node_offset += num_nodes_in_graph

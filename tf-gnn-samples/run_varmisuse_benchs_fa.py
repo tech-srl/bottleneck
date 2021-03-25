@@ -47,7 +47,7 @@ def run(args):
                                        model,
                                        "VarMisuse",
                                        "--model-param-overrides",
-                                       "{\"random_seed\": %i,\"last_layer_complete\":true}" % seed,
+                                       "{\"random_seed\": %i,\"last_layer_fa\":true}" % seed,
                                        ],
                                       stdout=log_fh,
                                       stderr=log_fh)
@@ -80,7 +80,7 @@ def run(args):
                     test_res_match = TEST_RES_RE.search(line)
                     if test_res_match is not None:
                         testonly_accs.append(float(test_res_match.groups()[0]))
- 
+
         print("| %- 14s | %.3f (+/- %.3f) | %.3f (+/- %.3f) | %.3f (+/- %.3f) |"
               % (model,
                  np.mean(valid_accs),

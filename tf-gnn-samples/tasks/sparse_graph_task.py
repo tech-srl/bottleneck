@@ -152,7 +152,7 @@ class Sparse_Graph_Task(ABC):
     def make_task_output_model(self,
                                placeholders: Dict[str, tf.Tensor],
                                model_ops: Dict[str, tf.Tensor],
-                               last_layer_complete: bool
+                               last_layer_fa: bool
                                ) -> None:
         """
         Create task-specific output model. For this, additional placeholders
@@ -253,7 +253,7 @@ class Sparse_Graph_Task(ABC):
             e.g., mean absolute error for a regression task.
         """
         raise NotImplementedError()
-    
+
     @staticmethod
     def pad_lists(list_of_lists, value):
         max_len = max(len(l) for l in list_of_lists)

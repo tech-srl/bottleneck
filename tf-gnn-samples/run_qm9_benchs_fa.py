@@ -42,7 +42,7 @@ def run(args):
                                            model,
                                            "QM9",
                                            "--model-param-overrides",
-                                           "{\"random_seed\": %i,\"last_layer_complete\":true,\"max_nodes_in_batch\":30000}" % seed,
+                                           "{\"random_seed\": %i,\"last_layer_fa\":true,\"max_nodes_in_batch\":30000}" % seed,
                                            "--task-param-overrides",
                                            "{\"task_ids\": [%i]}" % task_id,
                                            ],

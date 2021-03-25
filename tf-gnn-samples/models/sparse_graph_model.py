@@ -44,7 +44,7 @@ class Sparse_Graph_Model(ABC):
             'clamp_gradient_norm': 1.0,
             'random_seed': 0,
 
-            'last_layer_complete': False,
+            'last_layer_fa': False,
         }
 
     @staticmethod
@@ -140,7 +140,7 @@ class Sparse_Graph_Model(ABC):
 
             self.__build_graph_propagation_model()
 
-        self.task.make_task_output_model(self.__placeholders, self.__ops, last_layer_complete=self.params['last_layer_complete'])
+        self.task.make_task_output_model(self.__placeholders, self.__ops, last_layer_fa=self.params['last_layer_fa'])
 
         tf.summary.scalar('loss', self.__ops['task_metrics']['loss'])
         total_num_graphs_variable = \
@@ -190,8 +190,8 @@ class Sparse_Graph_Model(ABC):
 
                 adjacency_lists = self.__ops['adjacency_lists']
                 type_to_num_incoming_edges = self.__ops['type_to_num_incoming_edges']
-                if self.params['last_layer_complete'] and layer_idx == self.params['graph_num_layers'] - 1:
-                    print('Last layer: complete')
+                if self.params['last_layer_fa'] and layer_idx == self.params['graph_num_layers'] - 1:
+                    print('Last layer: FA')
                     full_adjacency_lists, full_type_to_num_incoming_edges = self.task.complete_edges(
                         placeholders=self.__placeholders,
                         adjacency_lists=adjacency_lists, type_to_num_incoming_edges=type_to_num_incoming_edges)
@@ -218,154 +218,8 @@ class Sparse_Graph_Model(ABC):
                                               activation=activation_fn,
                                               name="Dense",
                                               )(cur_node_representations)
-                if 'global_attention_heads' in self.task.params \
-                        and self.task.params['global_attention_heads'] > 0 \
-                        and 'global_attention_every_layer' in self.task.params \
-                        and self.task.params['global_attention_every_layer']\
-                        and layer_idx < (self.params['graph_num_layers'] - 1):
-                    num_heads = self.task.params['global_attention_heads']
-                    print('Using global attention with {} heads every layer'.format(num_heads))
-                    slot_representations = \
-                        tf.gather(params=cur_node_representations, indices=self.__placeholders['slot_node_ids'])  # Shape: [G, D]
-                    # graph_to_nodes contains "-1" as padding, which we cannot use to gather.
-                    # So we first make the "-1" into zeros and gather anyways, but later mask the scores that were produced these
-                    # invalid indices
-                    graph_to_nodes_placeholder = self.__placeholders['graph_to_nodes']
-                    safe_graph_to_nodes = tf.maximum(graph_to_nodes_placeholder, 0)
-                    graph_nodes = \
-                        tf.gather(params=cur_node_representations, indices=safe_graph_to_nodes)  # Shape: [G, V, D]
-                    slots_dot_w = tf.keras.layers.Dense(units=h_dim * num_heads,
-                                                        use_bias=False,
-                                                        activation=None,
-                                                        name='global_attention_layer1'
-                                                        )(slot_representations)  # Shape: [G, D * heads]
-                    slots_dot_w = tf.reshape(slots_dot_w, [-1, num_heads, h_dim])  # (G, num_heads, D)
-                    global_attention_scores = tf.matmul(slots_dot_w, graph_nodes,
-                                                        transpose_b=True)  # Shape: (G, num_heads, V)
-                    valid_mask = tf.cast(tf.greater(graph_to_nodes_placeholder, -1), dtype=tf.float32)  # (G, V)
-                    masked_global_attention_scores = global_attention_scores \
-                                                     + tf.expand_dims(tf.log(valid_mask),
-                                                                      axis=1)  # Shape: (G, heads, V)
-                    # + tf.expand_dims(tf.log(same_node_mask), axis=1) # Shape: (G, heads, V)
-                    normalized_global_attention_scores = tf.expand_dims(
-                        tf.nn.softmax(masked_global_attention_scores, axis=-1), axis=-1)  # (G, heads, V, 1)
-                    weighted_graph_nodes = tf.multiply(normalized_global_attention_scores,
-                                                       tf.expand_dims(graph_nodes, axis=1))  # (G, heads, V, D)
-                    weighted_average = tf.reduce_sum(weighted_graph_nodes, axis=2)  # (G, heads, D)
-                    flattened_heads = tf.reshape(weighted_average,
-                                                 [-1, num_heads * h_dim])  # (G, heads * D)
-                    slots_with_attended = tf.concat([slot_representations, flattened_heads],
-                                                    axis=-1)  # (G, D * (1+ heads))
-                    slot_representations = tf.keras.layers.Dense(units=h_dim,
-                                                                 use_bias=False,
-                                                                 activation=tf.nn.relu,
-                                                                 name='global_attention_layer2'
-                                                                 )(slots_with_attended)
-                    cur_node_representations = Sparse_Graph_Model.scatter_rows(
-                        cur_node_representations,
-                        indices=self.__placeholders['slot_node_ids'],
-                        updates=slot_representations)
 
         self.__ops['final_node_representations'] = cur_node_representations
-
-    def complete_edges(self, adjacency_lists, type_to_num_incoming_edges):
-        return
-        #graph_to_nodes = self.__placeholders['graph_to_nodes']
-        graph_to_nodes = self.__placeholders['nonterminal_node_indices']
-
-        max_nodes = tf.shape(graph_to_nodes)[1]
-
-        if 'slot_node_ids' in self.__placeholders:
-            slot_node_ids = self.__placeholders['slot_node_ids']
-            max_nodes = tf.shape(graph_to_nodes)[1]
-
-
-            candidate_node_ids = self.__placeholders['candidate_node_ids'] # (G, Candidates)
-            candidate_node_ids_mask = self.__placeholders['candidate_node_ids_mask'] # (G, Candidates)
-            safe_candidates = tf.where(tf.equal(candidate_node_ids_mask, 1),
-                                       candidate_node_ids,
-                                       -tf.ones_like(candidate_node_ids)) # (G, candidates)
-
-            nodes_are_candi = tf.reduce_any(tf.equal(tf.expand_dims(graph_to_nodes, axis=-1),
-                                       tf.expand_dims(safe_candidates, axis=1)), axis=-1) # (G, N)
-            nodes_are_slots = tf.equal(graph_to_nodes,
-                                       tf.expand_dims(slot_node_ids, axis=-1)) # (G, N)
-
-            graph_to_nodes_without_candi_without_slots = tf.where(
-                tf.logical_or(nodes_are_candi, nodes_are_slots),
-                -tf.ones_like(graph_to_nodes), graph_to_nodes)
-            pairs = tf.concat([tf.expand_dims(graph_to_nodes_without_candi_without_slots, axis=-1),
-                               tf.tile(tf.expand_dims(tf.expand_dims(slot_node_ids, axis=-1), axis=-1),
-                                       [1, max_nodes, 1])], axis=-1) # (G, N, 2)
-            # # slot_node_ids = self.__placeholders['slot_node_ids']
-            # num_candidate_vars = self.task.params['max_variable_candidates']
-            #
-            #
-            num_candidate_vars = 5
-            tiled_node_indices = tf.tile(tf.expand_dims(tf.expand_dims(graph_to_nodes_without_candi_without_slots, axis=-1), axis=-1),
-                                         [1, 1, num_candidate_vars, 1]) # (G, N, candidates, 1)
-            tiled_candidates = tf.tile(tf.expand_dims(tf.expand_dims(safe_candidates, axis=1), axis=-1),
-                                       [1, max_nodes, 1, 1])
-            nodes_to_candidate_pairs = tf.concat([tiled_node_indices, tiled_candidates], axis=-1) # (G, N, candi, 2)
-
-            #pairs = tf.concat([
-            #pairs =     tf.reshape(pairs, [-1, 2])
-            paris = tf.reshape(nodes_to_candidate_pairs, [-1, 2])
-            #], axis=0) # (G, N(1+candi), 2)
-
-            # num_graphs = tf.shape(candidate_node_ids_mask)[0]
-            # slots_and_candidate_node_ids_mask = tf.concat([tf.ones((num_graphs, 1)), candidate_node_ids_mask], axis=-1) # (G, Candidates + 1)
-            # tiled_sources = tf.tile(tf.expand_dims(graph_to_nodes, axis=-1), [1, 1, (num_candidate_vars + 1)]) # (G, N, Candidates+1)
-            # tiled_targets = tf.tile(tf.expand_dims(graph_to_nodes[:, :(num_candidate_vars + 1)], axis=1), [1, max_nodes, 1]) # (G, N, Candidates+1)
-            # pairs = tf.concat(
-            #     [tf.expand_dims(tiled_sources, axis=-1), tf.expand_dims(tiled_targets, axis=-1)],
-            #     axis=-1)  # (G, max_nodes, Candidates+1, 2)
-
-            # pairs_t = tf.transpose(pairs, [0, 2, 1, 3]) # (G, Candidates+1, max_nodes, 2)
-            # pairs = tf.gather_nd(pairs_t, tf.where(slots_and_candidate_node_ids_mask)) # (?, max_nodes, 2)
-
-            # pairs = pairs[:, :, :(num_candidate_vars + 1), :]
-            # tiled_slot_ids = tf.tile(tf.expand_dims(tf.expand_dims(slot_node_ids, axis=-1), axis=-1), [1, max_nodes, 1])
-            # candidate_node_ids_mask = self.__placeholders['candidate_node_ids_mask'] # (G, num_candidates)
-            # tiled_graph_to_nodes = tf.tile(tf.expand_dims(graph_to_nodes, axis=-1), [1, 1, num_candidate_vars + 1])
-            # pairs = tf.concat([tf.expand_dims(graph_to_nodes, axis=-1),
-            #                    tiled_slot_ids], axis=-1)
-
-
-
-            # Add self-loops
-            current_self = tf.equal(pairs[:, 0], pairs[:, 1])
-            pairs = tf.gather_nd(pairs, tf.where(tf.logical_not(current_self)))
-            pairs = tf.concat([
-                pairs,
-                tf.reshape(tf.tile(tf.expand_dims(graph_to_nodes, axis=-1), [1, 1, 2]), [-1, 2])
-            ], axis=0)
-        else:
-            tiled_nodes = tf.tile(tf.expand_dims(graph_to_nodes, axis=-1), (1, 1, max_nodes))
-            pairs = tf.concat(
-                [tf.expand_dims(tiled_nodes, axis=-1), tf.expand_dims(tf.transpose(tiled_nodes, [0, 2, 1]), axis=-1)],
-                axis=-1) # (G, max_nodes, max_nodes, 2)
-
-
-        flat_pairs = tf.reshape(pairs, [-1, 2])
-        relevant_edges = tf.reshape(tf.gather(flat_pairs, tf.where(tf.reduce_min(flat_pairs, axis=-1) >= 0)), [-1, 2])
-
-        num_types = tf.shape(type_to_num_incoming_edges)[0]
-        # num_nodes_in_graph = tf.reduce_sum(tf.cast(tf.greater(graph_to_nodes, -1), dtype=tf.float32), axis=-1)
-
-        # tiled_num_nodes_in_graph = tf.tile(tf.expand_dims(num_nodes_in_graph, axis=-1),
-        #                                    [1, tf.shape(graph_to_nodes)[-1]])
-        # num_incoming_nodes_per_node = tf.gather_nd(tiled_num_nodes_in_graph, tf.where(graph_to_nodes > -1))
-        num_incoming_nodes_per_node = tf.unsorted_segment_sum(
-            data=tf.ones([tf.shape(relevant_edges)[0]]),
-            segment_ids=relevant_edges[:, 1],
-            num_segments=tf.shape(type_to_num_incoming_edges)[1])
-
-        # type_to_num_all_edges = tf.tile(tf.expand_dims(num_incoming_nodes_per_node, axis=0), [num_types, 1])
-
-        return self.task.complete_edges(relevant_edges, num_incoming_nodes_per_node,
-                                        adjacency_lists, type_to_num_incoming_edges,
-                                        graph_to_nodes)
 
     @staticmethod
     def scatter_rows(x, indices, updates):

@@ -17,15 +17,9 @@ ALPHABET_DICT = {char: idx + 2 for (idx, char) in enumerate(ALPHABET)}  # "0" is
 ALPHABET_DICT["PAD"] = 0
 ALPHABET_DICT["UNK"] = 1
 USES_SUBTOKEN_EDGE_NAME = "UsesSubtoken"
-SAME_TOKEN_EDGE_NAME = "SameToken"
 SELF_LOOP_EDGE_NAME = "SelfLoop"
 BACKWARD_EDGE_TYPE_NAME_SUFFIX = "_Bkwd"
 __PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", "LastUse", "LastWrite", "LastLexicalUse", "ComputedFrom", "GuardedByNegation", "GuardedBy", "FormalArgName", "ReturnsTo", USES_SUBTOKEN_EDGE_NAME]
-# __PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", "LastLexicalUse", "FormalArgName", "ReturnsTo", USES_SUBTOKEN_EDGE_NAME, SAME_TOKEN_EDGE_NAME]
-#__PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", SAME_TOKEN_EDGE_NAME]
-#__PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", "LastLexicalUse", "FormalArgName", "ReturnsTo", USES_SUBTOKEN_EDGE_NAME] lastWrite
-#__PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", "LastLexicalUse", "FormalArgName", "ReturnsTo", USES_SUBTOKEN_EDGE_NAME] lastUse
-#__PROGRAM_GRAPH_EDGES_TYPES = ["Child", "NextToken", "LastLexicalUse", "FormalArgName", "ReturnsTo", USES_SUBTOKEN_EDGE_NAME] lastUse + lastWrite
 __PROGRAM_GRAPH_EDGES_TYPES_WITH_BKWD = \
     __PROGRAM_GRAPH_EDGES_TYPES + [edge_type_name + BACKWARD_EDGE_TYPE_NAME_SUFFIX
                                    for edge_type_name in __PROGRAM_GRAPH_EDGES_TYPES]
@@ -70,28 +64,6 @@ def _add_per_subtoken_nodes(unsplittable_node_names: Set[str], graph_dict: Dict[
                           for using_node_id in using_nodes])
 
     graph_dict['Edges'][USES_SUBTOKEN_EDGE_NAME] = new_edges
-
-def _add_same_token_edges(raw_sample: Dict[str, Any],
-                          token_node_indices: List[int]) -> None:
-    # print('Adding SAME_TOKEN edges')
-    graph_dict = raw_sample['ContextGraph']
-    graph_node_labels = graph_dict['NodeLabels']
-    candidate_name_to_id = {c['SymbolName']:c['SymbolDummyNode'] for c in raw_sample['SymbolCandidates']}
-    candidate_to_tokens = {candi_id: set() for candi_id in candidate_name_to_id.values()}
-
-    for tok_id in token_node_indices:
-        if tok_id in candidate_to_tokens:
-            continue
-        tok_str = graph_node_labels[str(tok_id)]
-        if tok_str in candidate_name_to_id:
-            candidate_to_tokens[candidate_name_to_id[tok_str]].add(tok_id)
-
-    new_edges = []
-    for candi_id, occurrences in candidate_to_tokens.items():
-        new_edges.extend([[occ, candi_id]
-                          for occ in occurrences])
-
-    graph_dict['Edges'][SAME_TOKEN_EDGE_NAME] = new_edges
 
 def _create_fa_edges(raw_sample: Dict[str, Any], max_variable_candidates) -> np.array:
     #print('Creating FA edges')
@@ -138,13 +110,6 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     _add_per_subtoken_nodes(unsplittable_node_names, raw_sample['ContextGraph'])
 
     raw_edges = raw_sample['ContextGraph']['Edges']
-    parents = set([p for p, c in raw_edges['Child']])
-    token_node_indices = [int(k) for k in raw_sample['ContextGraph']['NodeLabels'].keys() if
-                            int(k) not in parents
-                            and k in raw_sample['ContextGraph']['NodeTypes']
-                          ]
-    if SAME_TOKEN_EDGE_NAME in PROGRAM_GRAPH_EDGES_TYPES_VOCAB:
-        _add_same_token_edges(raw_sample, token_node_indices)
 
     fa_edges = _create_fa_edges(raw_sample, max_variable_candidates)
 
@@ -307,9 +272,7 @@ class VarMisuse_Task(Sparse_Graph_Task):
             'max-margin_loss_margin': 0.2,
             'out_layer_dropout_rate': 0.2,
             'add_self_loop_edges': False,
-            'global_attention_heads': 0,
             'candidate_attention_heads': 0,
-            'global_attention_every_layer': False,
             'char_embed': False,
             # 'max_num_data_files': 3,
         })
@@ -478,7 +441,7 @@ class VarMisuse_Task(Sparse_Graph_Task):
     def make_task_output_model(self,
                                placeholders: Dict[str, tf.Tensor],
                                model_ops: Dict[str, tf.Tensor],
-                               last_layer_complete: bool,
+                               last_layer_fa: bool,
                                ) -> None:
         # placeholders['slot_node_ids'] = \
         #     tf.placeholder(dtype=tf.int32, shape=[None], name='slot_node_ids')
@@ -504,33 +467,6 @@ class VarMisuse_Task(Sparse_Graph_Task):
             tf.gather(params=final_node_states, indices=safe_graph_to_nodes) # Shape: [G, V, D]
         valid_mask = tf.cast(tf.greater(graph_to_nodes_placeholder, -1), dtype=tf.float32) # (G, V)
 
-        if self.params['global_attention_heads'] > 0:
-            num_heads = self.params['global_attention_heads']
-            print('Using global attention with {} heads'.format(num_heads))
-            # graph_to_nodes contains "-1" as padding, which we cannot use to gather.
-            # So we first make the "-1" into zeros and gather anyways, but later mask the scores that were produced these
-            # invalid indices
-            # Child_bkwd edge type is #11
-            slots_dot_w = tf.keras.layers.Dense(units=final_node_repr_size * num_heads,
-                                           use_bias=False,
-                                           activation=None,
-                                           name='global_attention_layer1'
-                                           )(slot_representations) # Shape: [G, D * heads]
-            slots_dot_w = tf.reshape(slots_dot_w, [-1, num_heads, final_node_repr_size]) # (G, num_heads, D)
-            global_attention_scores = tf.matmul(slots_dot_w, graph_nodes, transpose_b=True) # Shape: (G, num_heads, V)
-            masked_global_attention_scores = global_attention_scores \
-                                             + tf.expand_dims(tf.log(valid_mask), axis=1) # Shape: (G, heads, V)
-                                             #+ tf.expand_dims(tf.log(same_node_mask), axis=1) # Shape: (G, heads, V)
-            normalized_global_attention_scores = tf.expand_dims(tf.nn.softmax(masked_global_attention_scores, axis=-1), axis=-1) # (G, heads, V, 1)
-            weighted_graph_nodes = tf.multiply(normalized_global_attention_scores, tf.expand_dims(graph_nodes, axis=1)) # (G, heads, V, D)
-            weighted_average = tf.reduce_sum(weighted_graph_nodes, axis=2) # (G, heads, D)
-            flattened_heads = tf.reshape(weighted_average, [-1, num_heads * final_node_repr_size])  # (G, heads * D)
-            slots_with_attended = tf.concat([slot_representations, flattened_heads], axis=-1) # (G, D * (1+ heads))
-            slot_representations = tf.keras.layers.Dense(units=final_node_repr_size,
-                                                         use_bias=False,
-                                                         activation=tf.nn.relu,
-                                                         name='global_attention_layer2'
-                                                         )(slots_with_attended)
 
         # Make things fit into 1D gather:
         candidate_node_ids = tf.reshape(placeholders['candidate_node_ids'], shape=[-1])
@@ -540,10 +476,6 @@ class VarMisuse_Task(Sparse_Graph_Task):
             tf.reshape(candidate_representations,
                        shape=[-1, num_candidate_vars, final_node_repr_size])  # Shape: [G, Cands, D]
 
-        # if last_layer_complete:
-        #     num_nodes_in_graph = tf.reduce_sum(valid_mask, axis=-1, keepdims=True) # (G, 1)
-        #     slot_representations /= num_nodes_in_graph
-        #     candidate_representations /= tf.expand_dims(num_nodes_in_graph, -1)
 
         if self.params['candidate_attention_heads'] > 0:
             num_heads = self.params['candidate_attention_heads']
@@ -665,8 +597,6 @@ class VarMisuse_Task(Sparse_Graph_Task):
                 model_placeholders['candidate_node_ids']: raw_batch_data['candidate_node_ids'],
                 model_placeholders['candidate_node_ids_mask']: raw_batch_data['candidate_node_ids_mask'],
                 model_placeholders['fa_edges']: np.concatenate(raw_batch_data['fa_edges'], axis=0),
-                # model_placeholders['fa_edges']: Sparse_Graph_Task.pad_lists(
-                #     raw_batch_data['fa_edges'], value=-1)
             }
 
             if data_fold == DataFold.TRAIN:
@@ -734,9 +664,6 @@ class VarMisuse_Task(Sparse_Graph_Task):
         return "Accuracy: %.3f" % (acc,)
 
     def complete_edges(self, placeholders, adjacency_lists, type_to_num_incoming_edges):
-                       # full_edges, type_to_num_incoming_full,
-                       # original_adjacency_lists, original_type_to_num_incoming_edges, graph_to_nodes):
-
         fa_edges = placeholders['fa_edges']
 
         type_to_num_incoming_full = tf.unsorted_segment_sum(
@@ -744,14 +671,7 @@ class VarMisuse_Task(Sparse_Graph_Task):
            segment_ids=fa_edges[:, 1],
            num_segments=tf.shape(type_to_num_incoming_edges)[1])
 
-        # num_nodes = tf.shape(type_to_num_incoming_edges)[1]
-        # self_loops = tf.stack([tf.range(num_nodes), tf.range(num_nodes)], axis=1)
-        # num_incoming_edges_self_loops = tf.ones_like(type_to_num_incoming_edges[0])
-        # type_to_num_all_edges = tf.stack([type_to_num_incoming_full, num_incoming_edges_self_loops], axis=0)
-        # full_adjacency_lists = [fa_edges] + [self_loops]
         index_of_drop = PROGRAM_GRAPH_EDGES_TYPES_VOCAB['GuardedByNegation']
-        # type_to_num_all_edges = tf.concat([tf.expand_dims(type_to_num_incoming_full, axis=0), type_to_num_incoming_edges], axis=0)
-        # full_adjacency_lists = [fa_edges] + adjacency_lists
         type_to_num_all_edges = tf.concat([
             type_to_num_incoming_edges[:index_of_drop],
             tf.expand_dims(type_to_num_incoming_full, axis=0),

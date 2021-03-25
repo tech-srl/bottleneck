@@ -37,8 +37,6 @@ class QM9_Task(Sparse_Graph_Task):
             'use_graph': True,
             'activation_function': "tanh",
             'out_layer_dropout_keep_prob': 1.0,
-            'global_attention_heads': 0,
-            'global_attention_every_layer': False,
         })
         return params
 
@@ -164,7 +162,7 @@ class QM9_Task(Sparse_Graph_Task):
     def make_task_output_model(self,
                                placeholders: Dict[str, tf.Tensor],
                                model_ops: Dict[str, tf.Tensor],
-                               last_layer_complete: bool,
+                               last_layer_fa: bool,
                                ) -> None:
 
         placeholders['target_values'] = \
@@ -187,62 +185,34 @@ class QM9_Task(Sparse_Graph_Task):
                         use_biases=True,
                         dropout_rate=1.0 - placeholders['out_layer_dropout_keep_prob'],
                         name="regression")
-                if self.params['global_attention_heads'] > 0:
-                    num_heads = self.params['global_attention_heads']
-                    print('Using self attention with {} heads'.format(num_heads))
+
+                if last_layer_fa:
                     graph_nodes = \
-                        tf.gather(params=final_node_representations, indices=safe_graph_to_nodes)  # Shape: [G, V, D]
-                    selfatt = SelfAttention(num_heads=num_heads,
-                                        model_dim=final_node_repr_size,
-                                        dropout_keep_prob=placeholders['out_layer_dropout_keep_prob'])
-                    attended_graph_nodes = selfatt.multi_head(batched_inputs=graph_nodes,
-                                                                    valid_mask=valid_mask) # (G, V, D)
-                    attended_graph_nodes = tf.concat([attended_graph_nodes, graph_nodes], axis=-1) # (G, V, 2D)
-                    attended_graph_nodes /= tf.expand_dims(tf.expand_dims(tf.reduce_sum(valid_mask, axis=-1), axis=-1), axis=-1)
+                        tf.gather(params=final_node_representations,
+                                  indices=safe_graph_to_nodes)  # Shape: [G, V, D]
+                    graph_nodes /= tf.expand_dims(
+                        tf.expand_dims(tf.reduce_sum(valid_mask, axis=-1), axis=-1), axis=-1)
 
-                    final_node_representations = tf.gather_nd(params=attended_graph_nodes, indices=tf.where(valid_mask)) # (G, 2D)
-                    per_node_outputs = regression_transform(final_node_representations)
-                    per_node_gated_outputs = per_node_outputs
-                    per_graph_outputs = tf.unsorted_segment_sum(data=per_node_gated_outputs,
-                                                                segment_ids=placeholders['graph_nodes_list'],
-                                                                num_segments=placeholders['num_graphs'])
-                else:
-                    # if False: # avg
-                    #     per_node_outputs = regression_transform(final_node_representations)
-                    #     per_node_gated_outputs = per_node_outputs
-                    #
-                    #     # Sum up all nodes per-graph
-                    #     per_graph_outputs = tf.unsorted_segment_mean(data=per_node_gated_outputs,
-                    #                                                 segment_ids=placeholders['graph_nodes_list'],
-                    #                                                 num_segments=placeholders['num_graphs'])
+                    final_node_representations = tf.gather_nd(params=graph_nodes,
+                                                              indices=tf.where(valid_mask))  # (G, D)
 
-                    if last_layer_complete:
-                        graph_nodes = \
-                            tf.gather(params=final_node_representations,
-                                      indices=safe_graph_to_nodes)  # Shape: [G, V, D]
-                        graph_nodes /= tf.expand_dims(
-                            tf.expand_dims(tf.reduce_sum(valid_mask, axis=-1), axis=-1), axis=-1)
+                # Original gated-sum
+                regression_gate = \
+                    MLP(out_size=1,
+                        hidden_layers=[],
+                        use_biases=True,
+                        dropout_rate=1.0 - placeholders['out_layer_dropout_keep_prob'],
+                        name="regression_gate")
+                per_node_outputs = regression_transform(final_node_representations)
+                gate_input = tf.concat([final_node_representations,
+                                        model_ops['initial_node_features']],
+                                       axis=-1)
+                per_node_gated_outputs = tf.nn.sigmoid(regression_gate(gate_input)) * per_node_outputs
 
-                        final_node_representations = tf.gather_nd(params=graph_nodes,
-                                                                  indices=tf.where(valid_mask))  # (G, D)
-
-                    # Original gated-sum
-                    regression_gate = \
-                        MLP(out_size=1,
-                            hidden_layers=[],
-                            use_biases=True,
-                            dropout_rate=1.0 - placeholders['out_layer_dropout_keep_prob'],
-                            name="regression_gate")
-                    per_node_outputs = regression_transform(final_node_representations)
-                    gate_input = tf.concat([final_node_representations,
-                                            model_ops['initial_node_features']],
-                                           axis=-1)
-                    per_node_gated_outputs = tf.nn.sigmoid(regression_gate(gate_input)) * per_node_outputs
-
-                    # Sum up all nodes per-graph
-                    per_graph_outputs = tf.unsorted_segment_sum(data=per_node_gated_outputs,
-                                                                segment_ids=placeholders['graph_nodes_list'],
-                                                                num_segments=placeholders['num_graphs'])
+                # Sum up all nodes per-graph
+                per_graph_outputs = tf.unsorted_segment_sum(data=per_node_gated_outputs,
+                                                            segment_ids=placeholders['graph_nodes_list'],
+                                                            num_segments=placeholders['num_graphs'])
 
                 per_graph_outputs = tf.squeeze(per_graph_outputs)  # [g]
 
