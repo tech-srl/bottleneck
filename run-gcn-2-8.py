@@ -24,7 +24,7 @@ class Results:
 
 if __name__ == '__main__':
 
-    task = Task.DICTIONARY
+    task = Task.NEIGHBORS_MATCH
     gnn_type = GNN_TYPE.GCN
     stopping_criterion = STOP.TRAIN
     min_depth = 2

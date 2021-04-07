@@ -6,7 +6,7 @@ from common import Task, GNN_TYPE, STOP
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--task", dest="task", default=Task.PARITY, type=Task.from_string, choices=list(Task),
+    parser.add_argument("--task", dest="task", default=Task.NEIGHBORS_MATCH, type=Task.from_string, choices=list(Task),
                         required=False)
     parser.add_argument("--type", dest="type", default=GNN_TYPE.GCN, type=GNN_TYPE.from_string, choices=list(GNN_TYPE),
                         required=False)
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument("--eval_every", dest="eval_every", default=100, type=int, required=False)
     parser.add_argument("--batch_size", dest="batch_size", default=1024, type=int, required=False)
     parser.add_argument("--accum_grad", dest="accum_grad", default=1, type=int, required=False)
-    parser.add_argument("--stop", dest="stop", default=STOP.TRAIN, type=STOP.from_string, choices=list(STOP), 
+    parser.add_argument("--stop", dest="stop", default=STOP.TRAIN, type=STOP.from_string, choices=list(STOP),
                         required=False)
     parser.add_argument("--patience", dest="patience", default=20, type=int, required=False)
     parser.add_argument("--loader_workers", dest="loader_workers", default=0, type=int, required=False)
@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
 
 def get_fake_args(
-        task=Task.PARITY,
+        task=Task.NEIGHBORS_MATCH,
         type=GNN_TYPE.GCN,
         dim=32,
         depth=3,

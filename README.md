@@ -3,12 +3,13 @@
 This is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://openreview.net/pdf?id=i80OPhOCVH2) (ICLR'2021). 
 
 By [Uri Alon](http://urialon.cswp.cs.technion.ac.il/) and [Eran Yahav](http://www.cs.technion.ac.il/~yahave/).
-See also the [[video]](https://youtu.be/vrLsEwzZTCQ) and the [[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
+See also the [[video]](https://youtu.be/vrLsEwzZTCQ), [[poster]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2021/03/bottleneck_poster.pdf) and [[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
 
 this repository is divided into three sub-projects:
 
 1. The subdirectory `tf-gnn-samples` is a clone of 
 [https://github.com/microsoft/tf-gnn-samples](https://github.com/microsoft/tf-gnn-samples) by Brockschmidt (ICML'2020). 
+This project can be used to reproduce the QM9 and VarMisuse experiments of Section 4.2 and 4.2 in the paper.
 This sub-project depends on TensorFlow 1.13.
 The instructions for our clone are the same as their original code, except that reproducing our experiments 
 (the QM9 dataset and VarMisuse) can be done by running the
@@ -16,20 +17,21 @@ script `tf-gnn-samples/run_qm9_benchs_fa.py` or `tf-gnn-samples/run_varmisuse_be
 For additional dependencies and instructions, see their original README: 
 [https://github.com/microsoft/tf-gnn-samples/blob/master/README.md](https://github.com/microsoft/tf-gnn-samples/blob/master/README.md).
 The main modification that we performed is using a Fully-Adjacent layer as the last 
-GNN layer and we describe in our paper (Section 4). 
+GNN layer and we describe in our paper. 
 2. The subdirectory `gnn-comparison` is a clone of [https://github.com/diningphil/gnn-comparison](https://github.com/diningphil/gnn-comparison)
-by Errica et al. (ICLR'2020). This sub-project depends on PyTorch 1.4 and Pytorch-Geometric.
+by Errica et al. (ICLR'2020). 
+This project can be used to reproduce the biological experiments (Section 4.3, the ENZYMES and NCI1 datasets).
+This sub-project depends on PyTorch 1.4 and Pytorch-Geometric.
 For additional dependencies and instructions, see their original README: 
 [https://github.com/diningphil/gnn-comparison/blob/master/README.md](https://github.com/diningphil/gnn-comparison/blob/master/README.md).
-The instructions for our clone are the same, except that we added an additional flag to every `config_*.yml` file, called `last_layer_fully_adjacent`, 
-which is set to `True` by default, and reproduces our experiments (Section 4.3, the ENZYMES and NCI1 datasets).
+The instructions for our clone are the same, except that we added an additional flag to every `config_*.yml` file, called `last_layer_fa`, 
+which is set to `True` by default, and reproduces our experiments.
 The main modification that we performed is using a Fully-Adjacent layer as the last 
 GNN layer.
 3. The main directory (in which this file resides) can be used to reproduce the experiments of 
 Section 4.1 in the paper, for the "Tree-NeighborsMatch" problem. The rest of this README file includes the 
 instructions for this main directory. 
 This repository can be used to reproduce the experiments of 
-Section 4.1 in the paper, for the "Tree-NeighborsMatch" problem. 
 
 This project was designed to be useful in experimenting with new GNN architectures and new solutions for the over-squashing problem. 
 

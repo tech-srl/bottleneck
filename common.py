@@ -7,13 +7,7 @@ from torch_geometric.nn import GCNConv, GatedGraphConv, GINConv, GATConv
 
 
 class Task(Enum):
-    PARITY = auto()
-    LEAF_PARITY = auto()
-    NOISY_LEAF_PARITY = auto()
-    NOISY_SUM = auto()
-    DICTIONARY = auto()
-    NOISY_DICTIONARY = auto()
-    DUMMY = auto()
+    NEIGHBORS_MATCH = auto()
 
     @staticmethod
     def from_string(s):
@@ -23,7 +17,7 @@ class Task(Enum):
             raise ValueError()
 
     def get_dataset(self, depth, train_fraction):
-        if self is Task.DICTIONARY:
+        if self is Task.NEIGHBORS_MATCH:
             dataset = DictionaryLookupDataset(depth)
         else:
             dataset = None
@@ -55,7 +49,7 @@ class GNN_TYPE(Enum):
             return GINConv(nn.Sequential(nn.Linear(in_dim, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU(),
                                          nn.Linear(out_dim, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU()))
         elif self is GNN_TYPE.GAT:
-            # 4-heads, although the paper by Velickovic et al. had used 6-8 heads. 
+            # 4-heads, although the paper by Velickovic et al. had used 6-8 heads.
             # The output will be the concatenation of the heads, yielding a vector of size out_dim
             num_heads = 4
             return GATConv(in_dim, out_dim // num_heads, heads=num_heads)
