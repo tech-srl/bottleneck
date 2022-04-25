@@ -1,6 +1,7 @@
 # On the Bottleneck of Graph Neural Networks and its Practical Implications
 
-This is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://openreview.net/pdf?id=i80OPhOCVH2) (ICLR'2021). 
+This is the official implementation of the paper: [On the Bottleneck of Graph Neural Networks and its Practical Implications](https://openreview.net/pdf?id=i80OPhOCVH2) (ICLR'2021),
+which introduces the **over-squashing** problem of GNNs.
 
 By [Uri Alon](http://urialon.cswp.cs.technion.ac.il/) and [Eran Yahav](http://www.cs.technion.ac.il/~yahave/).
 See also the [[video]](https://youtu.be/vrLsEwzZTCQ), [[poster]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2021/03/bottleneck_poster.pdf) and [[slides]](https://urialon.cswp.cs.technion.ac.il/wp-content/uploads/sites/83/2020/07/bottleneck_slides.pdf). 
